@@ -1,0 +1,71 @@
+import pandas as pd
+import matplotlib.pyplot as plt
+import base64
+from PIL import Image
+from io import BytesIO
+import random
+import numpy as np
+
+# Load the combined CSV
+csv_file = "combined_captcha.csv"
+df = pd.read_csv(csv_file)
+
+# Function to convert base64 string to RGB numpy array
+def b64_to_rgb_array(b64_string):
+    img_bytes = base64.b64decode(b64_string)
+    img = Image.open(BytesIO(img_bytes)).convert("RGB")
+    return np.array(img)
+
+# Function to normalize RGB values to closest of [white, grey, red]
+def normalize_to_3_colors(img_array):
+    white = np.array([255, 255, 255])
+    grey = np.array([128, 128, 128])
+    red = np.array([255, 0, 0])
+    centroids = np.array([white, grey, red])
+
+    flat = img_array.reshape(-1, 3)
+    distances = np.linalg.norm(flat[:, None, :] - centroids[None, :, :], axis=2)
+    nearest = np.argmin(distances, axis=1)
+    normalized = centroids[nearest].reshape(img_array.shape)
+    return normalized
+
+# Function to detect captcha type based on border pixels after normalization
+def detect_type_by_border(img_array):
+    norm_img = normalize_to_3_colors(img_array)
+    border_pixels = np.concatenate([
+        norm_img[0, :, :], norm_img[-1, :, :],
+        norm_img[:, 0, :], norm_img[:, -1, :]
+    ], axis=0)
+
+    white_count = np.sum(np.all(border_pixels == [255, 255, 255], axis=1))
+    ratio = white_count / border_pixels.shape[0]
+    return 1 if ratio > 0.8 else 2  # threshold 80%
+
+# Add new column with type
+df['captcha_type'] = df['base64_string'].apply(lambda b64: detect_type_by_border(b64_to_rgb_array(b64)))
+
+# Save back to CSV
+output_file = "labeled_captchas_with_types.csv"
+df.to_csv(output_file, index=False)
+print(f"Saved classified captchas with type info to {output_file}")
+
+# Display 20 random images from each type
+fig, axes = plt.subplots(4, 10, figsize=(20, 8))
+axes = axes.flatten()
+
+sample_type1 = df[df['captcha_type'] == 1].sample(n=min(20, sum(df['captcha_type'] == 1)))
+for i, row in enumerate(sample_type1.itertuples()):
+    img_arr = b64_to_rgb_array(row.base64_string)
+    axes[i].imshow(img_arr)
+    axes[i].axis('off')
+    axes[i].set_title(f"{row.label}\nT{row.captcha_type}", fontsize=8)
+
+sample_type2 = df[df['captcha_type'] == 2].sample(n=min(20, sum(df['captcha_type'] == 2)))
+for i, row in enumerate(sample_type2.itertuples(), start=20):
+    img_arr = b64_to_rgb_array(row.base64_string)
+    axes[i].imshow(img_arr)
+    axes[i].axis('off')
+    axes[i].set_title(f"{row.label}\nT{row.captcha_type}", fontsize=8)
+
+plt.tight_layout()
+plt.show()
