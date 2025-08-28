@@ -55,7 +55,7 @@ while successful < n:
     time.sleep(sleep_time)
 
 # Save all base64 strings to CSV
-df = pd.DataFrame(base64_list)
-df.to_csv("unlabeled_base64_captcha_strings.csv", index=False, header=False)
+df = pd.DataFrame(base64_list, columns=['base64_string']) # Add column name here
+df.to_csv("unlabeled_base64_captcha_strings.csv", index=False) # header is True by default when columns are provided
 
 print(f"Finished collecting {len(base64_list)} captchas.")
