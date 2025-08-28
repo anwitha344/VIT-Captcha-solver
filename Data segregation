@@ -7,7 +7,7 @@ import random
 import numpy as np
 
 # Load the combined CSV
-csv_file = "combined_captcha.csv"
+csv_file = "labeled_captcha_with_types.csv"
 df = pd.read_csv(csv_file)
 
 # Function to convert base64 string to RGB numpy array
