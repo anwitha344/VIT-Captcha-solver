@@ -1,5 +1,6 @@
 # Captcha Recognition with CNNs
 
+link to download the model; https://drive.google.com/file/d/1zH0xwTzztHUNy-k3pbE-0q56q5vQh6xg/view?usp=drive_link
 This project is an end-to-end pipeline I built for solving captchas using Convolutional Neural Networks (CNNs).  
 I handled every stage: scraping captchas from VIT’s VTOP portal, labeling them, preprocessing the dataset, building a multi-output CNN, and training it with regularization.
 
@@ -10,26 +11,6 @@ I handled every stage: scraping captchas from VIT’s VTOP portal, labeling them
 - **Stack**: Python, Requests, Pandas, NumPy, TensorFlow/Keras, Matplotlib.  
 - **Dataset**: ~1050 labeled captchas.  
 - **Model**: Custom CNN with 6 classification heads.  
-
----
-
-##Installation
-
-git clone <repo-link>
-cd <repo>
-pip install -r requirements.txt
-
----
-
-## Usage
-
-### Train the Model
-
-python train.py
-
-### Predict on a Captcha
-
-python predict.py --image path/to/captcha.png
 
 ---
 
@@ -50,7 +31,7 @@ For training, I decoded the base64 strings, converted the images to grayscale, r
 ### Step 1: Captcha Collection
 
 I started by inspecting VTOP’s captcha system with Chrome DevTools. The images were being loaded as **base64 strings** from a backend endpoint.
-Initially, direct requests failed since the server required authentication. To fix this, I used `requests.session()`. Visiting the login page first set the session cookies, and with those in place, I was able to request the captcha endpoint.
+Initially, direct requests using requests lkibrary in python failed since the server required authentication. To fix this, I used `requests.session()`to visit the login page and first set the session cookies, and with those in place, I was able to request the captcha endpoint.
 
 I then wrote a script to fetch the base64 strings repeatedly and store them into a CSV file, building up the dataset.
 
@@ -58,7 +39,7 @@ I then wrote a script to fetch the base64 strings repeatedly and store them into
 
 ### Step 2: Labeling Captchas
 
-To make labeling efficient, I created a small UI in Google Colab.
+To make labeling efficient, I created a small UI using tkinter in Google Colab.
 
 * It allowed selecting how many captchas to label in one session.
 * Captchas were displayed in a large, clear format.
@@ -76,7 +57,7 @@ While reviewing the dataset, I noticed two distinct captcha styles:
 * **Type 1**: grey stroke noise.
 * **Type 2**: checkered grey background.
 
-To separate them, I wrote a script that examined the border pixel RGB values. If they were white, I marked the captcha as `T1`; if grey, as `T2`. This classification was stored in an additional CSV column.
+To separate them, I wrote a script that examined the border pixel RGB values. If they were white, It marked the captcha as `T1`; if grey, as `T2`. This classification was stored in an additional CSV column.
 
 <img width="1280" height="516" alt="image" src="https://github.com/user-attachments/assets/dc33250b-b008-48a8-aff3-2c80ed894620" />
 
@@ -193,7 +174,7 @@ To improve generalization:
 
 Dues to small data set and little low accuracy I compared my model's accuracy to other pretrained models- ResNet18 and InceptionV3 after fine tuning and added layers and other functions to compare accuracy 
 
-####Results
+#### Results
 
 | Model       | Accuracy per character | whole captcha accuracy |
 | ----------- | -----------------------| ---------------------- |
@@ -201,7 +182,7 @@ Dues to small data set and little low accuracy I compared my model's accuracy to
 | ResNet18    | 27%                    | 00%                    |
 | InceptionV3 | 31%                    | 5%                     |
 
-Hence the problem is with data size 
+#### Hence the problem is with data size 
 ---
 
 ## Future Work
