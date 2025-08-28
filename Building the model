@@ -9,7 +9,7 @@ from sklearn.model_selection import train_test_split
 # -----------------------------
 # Load CSV
 # -----------------------------
-df = pd.read_csv("final.csv")
+df = pd.read_csv("labeled_captcha_with_types.csv")
 
 # -----------------------------
 # Decode base64 → images
