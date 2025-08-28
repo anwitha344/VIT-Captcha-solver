@@ -1,0 +1,61 @@
+import requests
+import base64
+import matplotlib.pyplot as plt
+from bs4 import BeautifulSoup
+from PIL import Image
+import io
+import pandas as pd
+import time
+
+# Parameters
+url_login = "https://vtop.vitap.ac.in/vtop/login"
+url_captcha = "https://vtop.vitap.ac.in/vtop/get/new/captcha"
+n = 500             # number of captchas to fetch
+max_retries = 5     # retry if captcha fetch fails
+display_count = 5   # number of captchas to display
+sleep_time = 0.2    # delay between requests
+
+# Initialize session (cookies preserved)
+session = requests.Session()
+session.get(url_login, verify=False)
+
+base64_list = []
+successful = 0
+
+while successful < n:
+    for attempt in range(max_retries):
+        try:
+            response = session.get(url_captcha, verify=False)
+            soup = BeautifulSoup(response.text, "html.parser")
+            img_tag = soup.find("img")
+
+            if img_tag and "src" in img_tag.attrs:
+                img_data = img_tag["src"]
+
+                if img_data.startswith("data:image"):
+                    img_data = img_data.split(",")[1]
+                    # Add to list
+                    base64_list.append(img_data)
+                    successful += 1
+
+                    # Display first few images
+                    if successful <= display_count:
+                        image_bytes = base64.b64decode(img_data)
+                        image = Image.open(io.BytesIO(image_bytes))
+                        plt.imshow(image)
+                        plt.axis("off")
+                        plt.show()
+                    break  # break retry loop, success
+            else:
+                raise ValueError("No image found in response")
+
+        except Exception as e:
+            print(f"Attempt {attempt+1} failed: {e}")
+            time.sleep(0.5)  # wait a bit before retry
+    time.sleep(sleep_time)
+
+# Save all base64 strings to CSV
+df = pd.DataFrame(base64_list)
+df.to_csv("unlabeled_base64_captcha_strings.csv", index=False, header=False)
+
+print(f"Finished collecting {len(base64_list)} captchas.")
