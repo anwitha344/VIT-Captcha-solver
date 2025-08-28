@@ -10,7 +10,7 @@ import time
 # Parameters
 url_login = "https://vtop.vitap.ac.in/vtop/login"
 url_captcha = "https://vtop.vitap.ac.in/vtop/get/new/captcha"
-n = 500             # number of captchas to fetch
+n = 1100           # number of captchas to fetch
 max_retries = 5     # retry if captcha fetch fails
 display_count = 5   # number of captchas to display
 sleep_time = 0.2    # delay between requests
