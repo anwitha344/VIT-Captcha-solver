@@ -1,0 +1,183 @@
+import pandas as pd
+import base64
+import io
+import os
+import random
+from PIL import Image
+from IPython.display import display, clear_output
+import ipywidgets as widgets
+
+class CaptchaLabelerColab:
+    def __init__(self, csv_file):
+        self.csv_file = csv_file
+        self.df = None
+        self.unlabeled_indices = []
+        self.current_index = 0
+        self.total_unlabeled = 0
+        self.batch_size = None
+        self.batch_done = 0
+
+        # Widgets
+        self.status_label = widgets.Label(value="")
+        self.progress_label = widgets.Label(value="")
+        self.image_output = widgets.Output()
+        self.label_input = widgets.Text(
+            placeholder='Enter label here',
+            description='Label:',
+            layout=widgets.Layout(width='auto', flex='1 1 auto')
+        )
+        self.next_button = widgets.Button(description="Save & Next", button_style='success')
+        self.skip_button = widgets.Button(description="Skip", button_style='warning')
+        self.exit_button = widgets.Button(description="Save & Exit", button_style='danger')
+        self.batch_input = widgets.IntText(value=0, description="Batch size:", layout=widgets.Layout(width='150px'))
+        self.set_batch_button = widgets.Button(description="Set Batch Size", button_style='info')
+
+        self.next_button.on_click(self.on_next_click)
+        self.skip_button.on_click(self.on_skip_click)
+        self.exit_button.on_click(self.on_exit_click)
+        self.set_batch_button.on_click(self.on_set_batch)
+
+        # UI
+        button_box = widgets.HBox([self.label_input, self.next_button, self.skip_button, self.exit_button])
+        batch_box = widgets.HBox([self.batch_input, self.set_batch_button])
+        self.app_ui = widgets.VBox([self.progress_label, self.status_label, self.image_output, button_box, batch_box])
+
+        self._load_data()
+
+    def _load_data(self):
+        if not os.path.exists(self.csv_file):
+            self.status_label.value = f"Error: File not found at '{self.csv_file}'"
+            return
+
+        try:
+            self.df = pd.read_csv(self.csv_file)
+            if 'base64_string' not in self.df.columns:
+                self.status_label.value = "Error: CSV must contain 'base64_string' column."
+                return
+
+            if 'label' not in self.df.columns:
+                self.df['label'] = ""
+
+            self.unlabeled_indices = self.df[self.df['label'].isna() | (self.df['label'] == "")].index.tolist()
+            random.shuffle(self.unlabeled_indices)
+            self.total_unlabeled = len(self.unlabeled_indices)
+
+            if not self.unlabeled_indices:
+                self.status_label.value = "No unlabeled captchas found."
+                return
+
+            self.current_index = 0
+            self.batch_done = 0
+            self.status_label.value = f"Found {self.total_unlabeled} unlabeled captchas. Set batch size to start labeling."
+            self._update_progress_label()
+
+        except Exception as e:
+            self.status_label.value = f"Error loading CSV: {e}"
+
+    def _update_progress_label(self):
+        fraction = f"Batch: {self.batch_done}/{self.batch_size if self.batch_size else 0}"
+        overall = f"Total: {self.current_index}/{self.total_unlabeled}"
+        self.progress_label.value = f"{overall} | {fraction}"
+
+    def _show_next_captcha(self):
+        if self.batch_size is None or self.batch_size <= 0:
+            self.status_label.value = "Please set a batch size before labeling."
+            return
+
+        with self.image_output:
+            clear_output(wait=True)
+            self.status_label.value = ""
+
+            # Print previous labels or SKIPPED
+            start_idx = max(0, self.current_index - self.batch_done)
+            for i in range(start_idx, self.current_index):
+                idx = self.unlabeled_indices[i]
+                print(f"{i+1}. {self.df.at[idx, 'label']}")
+
+            if self.current_index >= self.total_unlabeled:
+                print("All unlabeled captchas processed.")
+                self._save_data()
+                self.app_ui.close()
+                return
+
+            self._update_progress_label()
+
+            original_idx = self.unlabeled_indices[self.current_index]
+            try:
+                image_data = base64.b64decode(self.df.at[original_idx, 'base64_string'])
+                image_pil = Image.open(io.BytesIO(image_data)).resize((200, 100), Image.LANCZOS)
+                display(image_pil)
+                self.label_input.value = ""
+            except Exception as e:
+                print(f"Error displaying image: {e}")
+                self.on_skip_click(None)
+
+    def _validate_label(self, label):
+        return len(label) == 6 and label.isupper()
+
+    def on_next_click(self, b):
+        if self.batch_size is None or self.batch_size <= 0:
+            self.status_label.value = "Please set a batch size before labeling."
+            return
+
+        label = self.label_input.value.strip()
+        if not self._validate_label(label):
+            self.status_label.value = "Error: Label must be exactly 6 characters and all uppercase."
+            return
+
+        self.status_label.value = ""
+        idx = self.unlabeled_indices[self.current_index]
+        self.df.at[idx, 'label'] = label
+        self.current_index += 1
+        self.batch_done += 1
+        self._update_progress_label()
+
+        if self.batch_done >= self.batch_size or self.current_index >= self.total_unlabeled:
+            self._batch_prompt()
+        else:
+            self._show_next_captcha()
+
+    def on_skip_click(self, b):
+        if self.batch_size is None or self.batch_size <= 0:
+            self.status_label.value = "Please set a batch size before labeling."
+            return
+
+        idx = self.unlabeled_indices[self.current_index]
+        self.df.at[idx, 'label'] = "SKIPPED"
+        self.current_index += 1
+        self.batch_done += 1
+        self._update_progress_label()
+
+        if self.batch_done >= self.batch_size or self.current_index >= self.total_unlabeled:
+            self._batch_prompt()
+        else:
+            self._show_next_captcha()
+
+    def on_exit_click(self, b):
+        self._save_data()
+        self.app_ui.close()
+
+    def _save_data(self):
+        self.df.to_csv(self.csv_file, index=False)
+        self.status_label.value = f"Saved progress to '{self.csv_file}'."
+
+    def on_set_batch(self, b):
+        if self.batch_input.value > 0:
+            self.batch_size = self.batch_input.value
+            self.batch_done = 0
+            self.status_label.value = f"Batch size set to {self.batch_size}. Start labeling."
+            self._show_next_captcha()
+
+    def _batch_prompt(self):
+        with self.image_output:
+            print(f"Batch of {self.batch_size} completed. Current index: {self.current_index}")
+            print("You can continue with same batch size, set new batch, or exit.")
+            self.batch_done = 0
+
+    def run(self):
+        display(self.app_ui)
+
+if __name__ == "__main__":
+    INPUT_CSV_FILE = 'unlabeled_base64_captcha_strings.csv'
+    app = CaptchaLabelerColab(INPUT_CSV_FILE)
+    app.run()
