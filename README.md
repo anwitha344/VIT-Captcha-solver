@@ -1,6 +1,7 @@
 # Captcha Recognition with CNNs
 
-link to download the model; https://drive.google.com/file/d/1zH0xwTzztHUNy-k3pbE-0q56q5vQh6xg/view?usp=drive_link
+link to download the model: https://drive.google.com/file/d/1zH0xwTzztHUNy-k3pbE-0q56q5vQh6xg/view?usp=drive_link
+
 This project is an end-to-end pipeline I built for solving captchas using Convolutional Neural Networks (CNNs).  
 I handled every stage: scraping captchas from VIT’s VTOP portal, labeling them, preprocessing the dataset, building a multi-output CNN, and training it with regularization.
 
