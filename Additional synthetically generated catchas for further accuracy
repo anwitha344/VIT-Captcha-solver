@@ -1,0 +1,215 @@
+import os
+import random
+import math
+import string
+import glob
+from pathlib import Path
+from typing import Tuple
+from PIL import Image, ImageDraw, ImageFont, ImageFilter
+import matplotlib.pyplot as plt
+import base64
+import io
+import pandas as pd
+
+# ==============================
+# 1) CONFIG
+# ==============================
+CHARS = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+CODE_LEN = 6
+
+# Intrinsic image dimensions
+IMG_W = 100
+IMG_H = 100
+
+# Rendered size as specified by the user
+RENDERED_W = 100
+RENDERED_H = 100
+
+# Fixed parameters based on the example image
+TEXT_COLOR = (138, 5, 6) # The dark red color
+BG_COLOR = (245, 245, 245) # A light gray/white background
+
+# ==============================
+# 2) FONT DISCOVERY
+# ==============================
+def find_ttf_fonts(max_fonts=15) -> list[str]:
+    """
+    Searches common system paths for .ttf font files.
+    This is necessary for Colab environments.
+    """
+    candidates = []
+    # Search common Colab font paths
+    search_roots = [
+        "/usr/share/fonts", "/usr/local/share/fonts", "/System/Library/Fonts", "/Library/Fonts"
+    ]
+    for root in search_roots:
+        for p in glob.glob(os.path.join(root, "**", "*.ttf"), recursive=True):
+            name = os.path.basename(p).lower()
+            if any(bad in name for bad in ["emoji", "noto-color", "symbola"]):
+                continue
+            candidates.append(p)
+    if not candidates:
+        fallback = "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"
+        if os.path.exists(fallback):
+            candidates = [fallback]
+    random.shuffle(candidates)
+    return candidates[:max_fonts]
+
+# Find fonts in the Colab environment
+FONT_PATHS = find_ttf_fonts()
+if not FONT_PATHS:
+    print("Warning: No TTF fonts found. Using default font.")
+    FONT_PATHS = [None] # Use a fallback
+
+# ==============================
+# 3) COLOR + CAPTCHA GENERATOR
+# ==============================
+
+def rand_code(k=CODE_LEN) -> str:
+    """Generates a random CAPTCHA string."""
+    return ''.join(random.choices(CHARS, k=k))
+
+def _rand_font():
+    """Selects a font and a fixed size."""
+    if FONT_PATHS[0] is None: # Use load_default if no TTF fonts were found
+        return ImageFont.load_default()
+
+    path = random.choice(FONT_PATHS)
+    size = 28 # A good size to match the example image
+    try:
+        return ImageFont.truetype(path, size=size)
+    except Exception:
+        return ImageFont.load_default()
+
+def _draw_strike_lines_fixed(img: Image.Image) -> Image.Image:
+    """
+    Draws straight, horizontal-ish grey lines across the image
+    to match the provided example.
+    """
+    W, H = img.size
+    overlay = Image.new('RGBA', (W, H), (255, 255, 255, 0))
+    odraw = ImageDraw.Draw(overlay)
+
+    lines = [
+        {'y': 10, 'angle': -5, 'width': 3, 'alpha': 150},
+        {'y': 18, 'angle': 5, 'width': 3, 'alpha': 150},
+        {'y': 30, 'angle': -2, 'width': 3, 'alpha': 150},
+    ]
+
+    for line in lines:
+        y_start = line['y']
+        angle = line['angle']
+        width = line['width']
+        alpha = line['alpha']
+
+        x1, y1 = -W * 0.1, y_start
+        x2, y2 = W * 1.1, y_start + math.tan(math.radians(angle)) * W * 1.2
+
+        color = (200, 200, 200, alpha)
+        odraw.line([(x1, y1), (x2, y2)], fill=color, width=width)
+
+    return Image.alpha_composite(img.convert('RGBA'), overlay).convert('RGB')
+
+def _draw_thick_text(draw, position, text, font, fill, thickness=1):
+    """Draws text with a thicker outline/fill."""
+    x, y = position
+    for dx in range(-thickness, thickness + 1):
+        for dy in range(-thickness, thickness + 1):
+            draw.text((x + dx, y + dy), text, font=font, fill=fill)
+    # Re-draw the original text in the center to make it look sharp
+    draw.text(position, text, font=font, fill=fill)
+
+
+def make_captcha_exact(text: str, intrinsic_W=IMG_W, intrinsic_H=IMG_H) -> Image.Image:
+    """
+    Generates a CAPTCHA image at intrinsic size, then resizes to rendered size.
+    """
+    bg = Image.new('RGB', (intrinsic_W, intrinsic_H), color=BG_COLOR)
+    draw = ImageDraw.Draw(bg)
+
+    x = 10 # Starting x position
+    y = 5 # Starting y position for text baseline
+
+    for ch in text:
+        font = _rand_font()
+        bbox = draw.textbbox((0, 0), ch, font=font)
+        char_w = bbox[2] - bbox[0]
+
+        y_jitter = random.randint(-2, 2)
+
+        # Use the new function to draw the character
+        _draw_thick_text(draw, (x, y + y_jitter), ch, font=font, fill=TEXT_COLOR, thickness=1)
+
+        x += char_w + random.randint(3, 6)
+
+    bg = _draw_strike_lines_fixed(bg)
+    bg = bg.filter(ImageFilter.GaussianBlur(radius=0.5))
+
+    # Resize to the final, rendered size
+    rendered_size = (RENDERED_W, RENDERED_H)
+    resized_img = bg.resize(rendered_size, Image.LANCZOS)
+
+    return resized_img
+
+def image_to_base64(img: Image.Image) -> str:
+    """Converts a PIL Image to a base64 string."""
+    buffered = io.BytesIO()
+    img.save(buffered, format="PNG")
+    return base64.b64encode(buffered.getvalue()).decode()
+
+
+# ==============================
+# 4) DEMO
+# ==============================
+if __name__ == "__main__":
+
+    # Generate an image with the exact text from the example
+    demo_text = "99AG6C"
+    demo_img = make_captcha_exact(demo_text)
+
+    # Display the generated image
+    plt.imshow(demo_img)
+    plt.title(f"Generated CAPTCHA: {demo_text} (Rendered Size: {demo_img.size})")
+    plt.axis('off')
+    plt.show()
+
+    # Save the generated image
+    demo_img.save("generated_captcha.png")
+    print(f"Generated image saved as generated_captcha.png in your Colab environment.")
+
+    # Generate a few random ones to demonstrate variation
+    print("\nGenerating a few random examples...")
+    fig, axes = plt.subplots(1, 3, figsize=(12, 4))
+    for ax in axes:
+        rand_text = rand_code()
+        img = make_captcha_exact(rand_text)
+        ax.imshow(img)
+        ax.set_title(rand_text)
+        ax.axis('off')
+    plt.tight_layout()
+    plt.show()
+# ==============================
+# 5) GENERATE AND SAVE CSV
+# ==============================
+
+num_captchas_to_generate = 2000 # You can change this number
+
+data = []
+for _ in range(num_captchas_to_generate):
+    captcha_text = rand_code()
+    captcha_img = make_captcha_exact(captcha_text)
+    base64_string = image_to_base64(captcha_img)
+    data.append({
+        'base64_string': base64_string,
+        'label': captcha_text,
+        'captcha_type': 'T1'
+    })
+
+df = pd.DataFrame(data)
+
+# Save the DataFrame to a CSV file
+csv_filename = "additional_synthetic_captchas.csv"
+df.to_csv(csv_filename, index=False)
+
+print(f"\nGenerated {num_captchas_to_generate} CAPTCHAs and saved to {csv_filename}")
+display(df.head())
