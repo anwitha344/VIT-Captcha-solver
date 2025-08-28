@@ -33,7 +33,7 @@ python predict.py --image path/to/captcha.png
 
 ---
 
-## 📂 Dataset
+## Dataset
 
 The dataset is stored in a CSV file with the following fields:
 
@@ -45,7 +45,7 @@ For training, I decoded the base64 strings, converted the images to grayscale, r
 
 ---
 
-# 📖 Full Documentation of project process
+# Full Documentation of project process
 
 ### Step 1: Captcha Collection
 
@@ -128,8 +128,20 @@ To improve generalization:
 * Used a **learning rate scheduler** to reduce LR when validation accuracy stopped improving.
 
 ---
+###Training history and graphs
+<img width="1001" height="547" alt="image" src="https://github.com/user-attachments/assets/17578d36-b66e-472d-b0cb-eb1c4e39f6a2" />
 
-## Results
+<img width="1018" height="855" alt="image" src="https://github.com/user-attachments/assets/eb7624d7-1e47-4f36-b4cf-be2edcc554e4" />
+
+
+
+---
+###Further trained model on examples it gets wront by filtering data set 
+<img width="988" height="547" alt="image" src="https://github.com/user-attachments/assets/0fcc7b61-e28b-40c1-b1a1-f5f1717f6b61" />
+
+Dues to small data set and little low accuracy I compared my model's accuracy to other pretrained models- ResNet18 and InceptionV3 after fine tuning and added layers and other functions to compare accuracy 
+
+####Results
 
 | Model       | Accuracy |
 | ----------- | -------- |
